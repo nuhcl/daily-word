@@ -425,7 +425,7 @@ html, body {
 
 <script>
 // ── Config ───────────────────────────────
-const MW_KEY = 'INSERT'; // paste your Merriam-Webster API key
+const WORKER_URL = 'https://daily-word-proxy.lindseydev001.workers.dev';
 
 const WORD_LIST = [
   'ebullient','truculent','mellifluous','sanguine',
@@ -481,9 +481,7 @@ async function fetchWord() {
   }
 
   try {
-    const res = await fetch(
-      `https://www.dictionaryapi.com/api/v3/references/collegiate/json/${word}?key=${MW_KEY}`
-    );
+    const res = await fetch(`${WORKER_URL}?word=${encodeURIComponent(word)}`);
     const data = await res.json();
 
     const first = data[0];
