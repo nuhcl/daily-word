@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Daily Word">
+<meta name="theme-color" content="#f5f0e8">
+<title>Daily Word</title>
+
+<!-- PWA Manifest (inline as data URI for single-file deployment) -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Apple touch icon - base64 encoded parchment W icon (1024px scaled) -->
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --parchment-light: #f5f0e8;
+  --parchment-dark:  #ede6d8;
+  --ink:             #1a1a2e;
+  --ink-mid:         #3a3a50;
+  --ink-light:       #8a8070;
+  --ink-faint:       #bbb4a8;
+  --gold:            #c8a030;
+  --border:          #ddd5c4;
+  --safe-top:        env(safe-area-inset-top, 0px);
+  --safe-bottom:     env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--parchment-light);
+  font-family: 'DM Sans', sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── SCREENS ─────────────────────────────── */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(160deg, var(--parchment-light) 0%, var(--parchment-dark) 100%);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#home-screen { z-index: 1; }
+#detail-screen {
+  z-index: 2;
+  transform: translateY(100%);
+  background: #fafaf7;
+  opacity: 1;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#detail-screen.visible {
+  transform: translateY(0);
+}
+
+/* ── HOME SCREEN ─────────────────────────── */
+.home-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: calc(var(--safe-top) + 40px) 32px calc(var(--safe-bottom) + 40px);
+  text-align: center;
+  gap: 0;
+}
+
+.home-eyebrow {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  margin-bottom: 16px;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s forwards;
+}
+
+.home-word {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(64px, 20vw, 96px);
+  font-weight: 700;
+  line-height: 0.9;
+  color: var(--ink);
+  letter-spacing: -2px;
+  margin-bottom: 12px;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.2s forwards;
+}
+
+.home-pos {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink-light);
+  margin-bottom: 24px;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.3s forwards;
+}
+
+.home-def {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(18px, 5vw, 22px);
+  color: var(--ink-mid);
+  line-height: 1.5;
+  max-width: 320px;
+  margin-bottom: 40px;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.4s forwards;
+}
+
+.home-tap-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--parchment-light);
+  border: none;
+  border-radius: 100px;
+  padding: 13px 28px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.5s forwards;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.home-tap-btn:active { transform: scale(0.96); background: var(--ink-mid); }
+
+.home-tap-btn svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.home-date {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + 20px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.6s forwards;
+}
+
+/* Loading state */
+.home-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--ink-light);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-word {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink-light);
+}
+
+/* ── DETAIL SCREEN ───────────────────────── */
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 16px) 24px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fafaf7;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--ink-mid);
+  cursor: pointer;
+  padding: 6px 0;
+  transition: color 0.15s;
+}
+
+.back-btn:active { color: var(--ink); }
+
+.back-btn svg { width: 18px; height: 18px; }
+
+.detail-header-word {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--safe-bottom) + 40px);
+}
+
+.detail-hero {
+  padding: 32px 28px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+}
+
+.detail-word {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(48px, 12vw, 64px);
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--ink);
+  margin-bottom: 10px;
+  letter-spacing: -1px;
+}
+
+.detail-pos {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink-light);
+}
+
+.detail-section {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 16px;
+}
+
+.def-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 14px;
+  align-items: flex-start;
+}
+
+.def-row:last-child { margin-bottom: 0; }
+
+.def-num {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-faint);
+  min-width: 16px;
+  padding-top: 4px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.def-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.example-row {
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.example-row:last-child { margin-bottom: 0; }
+
+.example-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px;
+  font-style: italic;
+  color: var(--ink-light);
+  line-height: 1.5;
+}
+
+.mw-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 28px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: background 0.15s;
+}
+
+.mw-link:active { background: var(--parchment-light); }
+
+.mw-link-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--parchment-light);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.mw-link-text { flex: 1; }
+
+.mw-link-title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.mw-link-sub {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.mw-link-arrow {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+/* ── ANIMATIONS ──────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── ERROR STATE ─────────────────────────── */
+.error-msg {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-style: italic;
+  color: var(--ink-light);
+  text-align: center;
+  max-width: 260px;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<!-- ── HOME SCREEN ───────────────────────── -->
+<div class="screen" id="home-screen">
+  <div class="home-inner" id="home-content">
+    <div class="home-loading">
+      <div class="spinner"></div>
+      <div class="loading-word">fetching today's word…</div>
+    </div>
+  </div>
+  <div class="home-date" id="home-date"></div>
+</div>
+
+<!-- ── DETAIL SCREEN ─────────────────────── -->
+<div class="screen" id="detail-screen">
+  <div class="detail-header">
+    <button class="back-btn" onclick="closeDetail()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Back
+    </button>
+    <div class="detail-header-word" id="detail-header-word"></div>
+    <div style="width:60px"></div>
+  </div>
+  <div class="detail-scroll" id="detail-scroll">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<script>
+// ── Config ───────────────────────────────
+const MW_KEY = '40687512-62ff-4cb8-850a-9b428ad7a8a6'; // paste your Merriam-Webster API key
+
+const WORD_LIST = [
+  'ebullient','truculent','mellifluous','sanguine',
+  'perspicacious','loquacious','ephemeral','querulous',
+  'recondite','tendentious','solipsism','pellucid',
+  'equanimity','pusillanimous','lassitude','inimical',
+  'perfidious','sapient','laconic','sycophant',
+  'lugubrious','obstreperous','propitious','sedulous',
+  'venal','vituperative','cogent','garrulous',
+  'fervid','inveterate','acrimony','cupidity',
+  'meretricious','fatuous','impecunious','mordant',
+  'nefarious','obsequious','pernicious','quixotic'
+];
+
+// ── Pick today's word deterministically ──
+function todaysWord() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const day = Math.floor((now - start) / 86400000);
+  return WORD_LIST[day % WORD_LIST.length];
+}
+
+// ── Strip MW markup tags ──────────────────
+function clean(s) {
+  return s
+    .replace(/\{bc\}/g, '')
+    .replace(/\{ldquo\}/g, '\u201C')
+    .replace(/\{rdquo\}/g, '\u201D')
+    .replace(/\{it\}/g, '').replace(/\{\/it\}/g, '')
+    .replace(/\{b\}/g,  '').replace(/\{\/b\}/g,  '')
+    .replace(/\{inf\}/g,'').replace(/\{\/inf\}/g,'')
+    .replace(/\{sup\}/g,'').replace(/\{\/sup\}/g,'')
+    .replace(/\{[^}]+\}/g, '')
+    .trim();
+}
+
+// ── State ────────────────────────────────
+let wordData = null;
+
+// ── Fetch from Merriam-Webster ────────────
+async function fetchWord() {
+  const word = todaysWord();
+
+  // Check cache — don't re-fetch same day
+  const cached = localStorage.getItem('dw_cache');
+  if (cached) {
+    const parsed = JSON.parse(cached);
+    if (parsed.word === word) {
+      wordData = parsed;
+      renderHome();
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch(
+      `https://www.dictionaryapi.com/api/v3/references/collegiate/json/${word}?key=${MW_KEY}`
+    );
+    const data = await res.json();
+
+    const first = data[0];
+    if (!first || typeof first === 'string') throw new Error('No entry');
+
+    const defs    = (first.shortdef || []).map(clean).filter(Boolean);
+    const pos     = first.fl || '';
+    const examples = [];
+
+    if (first.def) {
+      for (const d of first.def) {
+        if (!d.sseq) continue;
+        for (const sg of d.sseq) {
+          for (const sense of sg) {
+            for (const item of sense) {
+              if (item && typeof item === 'object' && item.t) {
+                const ex = clean(item.t);
+                if (ex.length > 15) examples.push(ex);
+              }
+            }
+          }
+        }
+        if (examples.length >= 3) break;
+      }
+    }
+
+    wordData = { word, pos, defs, examples };
+    localStorage.setItem('dw_cache', JSON.stringify(wordData));
+    renderHome();
+
+  } catch (e) {
+    renderError();
+  }
+}
+
+// ── Render home screen ────────────────────
+function renderHome() {
+  const { word, pos, defs } = wordData;
+  const shortDef = defs[0] || '';
+
+  document.getElementById('home-content').innerHTML = `
+    <div class="home-eyebrow">Word of the Day</div>
+    <div class="home-word">${word}</div>
+    ${pos ? `<div class="home-pos">${pos}</div>` : ''}
+    <div class="home-def">${shortDef}</div>
+    <button class="home-tap-btn" onclick="openDetail()">
+      Full definition
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
+  `;
+
+  // Date label
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  document.getElementById('home-date').textContent = dateStr;
+}
+
+function renderError() {
+  document.getElementById('home-content').innerHTML = `
+    <div class="error-msg">Couldn't load today's word.<br>Check your connection and try again.</div>
+  `;
+}
+
+// ── Open detail view ──────────────────────
+function openDetail() {
+  if (!wordData) return;
+  const { word, pos, defs, examples } = wordData;
+
+  document.getElementById('detail-header-word').textContent = word;
+
+  let defsHTML = defs.map((d, i) => `
+    <div class="def-row">
+      <div class="def-num">${i + 1}</div>
+      <div class="def-text">${d}</div>
+    </div>
+  `).join('');
+
+  let exHTML = '';
+  if (examples.length) {
+    exHTML = `
+      <div class="detail-section">
+        <div class="detail-section-label">Examples</div>
+        ${examples.map(ex => `
+          <div class="example-row">
+            <div class="example-text">${ex}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  const mwURL = `https://www.merriam-webster.com/dictionary/${encodeURIComponent(word)}`;
+
+  document.getElementById('detail-scroll').innerHTML = `
+    <div class="detail-hero">
+      <div class="detail-eyebrow">Word of the Day</div>
+      <div class="detail-word">${word}</div>
+      ${pos ? `<div class="detail-pos">${pos}</div>` : ''}
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-label">Definitions</div>
+      ${defsHTML}
+    </div>
+    ${exHTML}
+    <a class="mw-link" href="${mwURL}" target="_blank" rel="noopener">
+      <div class="mw-link-icon">📖</div>
+      <div class="mw-link-text">
+        <div class="mw-link-title">Full entry on Merriam-Webster</div>
+        <div class="mw-link-sub">merriam-webster.com</div>
+      </div>
+      <div class="mw-link-arrow">↗</div>
+    </a>
+  `;
+
+  document.getElementById('detail-screen').classList.add('visible');
+  document.getElementById('detail-scroll').scrollTop = 0;
+}
+
+// ── Close detail view ─────────────────────
+function closeDetail() {
+  document.getElementById('detail-screen').classList.remove('visible');
+}
+
+// ── Handle back gesture on iOS ────────────
+window.addEventListener('popstate', () => {
+  const detail = document.getElementById('detail-screen');
+  if (detail.classList.contains('visible')) closeDetail();
+});
+
+// ── Init ─────────────────────────────────
+fetchWord();
+</script>
+</body>
+</html>
